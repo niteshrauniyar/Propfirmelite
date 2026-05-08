@@ -1,544 +1,232 @@
-# app.py
-# RUN THIS:
-# streamlit run app.py
-
 import streamlit as st
 import streamlit.components.v1 as components
+import plotly.graph_objects as go
+import pandas as pd
+import sqlite3
+from datetime import datetime
 
+# Page Configuration
 st.set_page_config(
-    page_title="PropElite",
+    page_title="Midnight Markets | Prop Firm Elite",
     page_icon="⚡",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-# -----------------------------------
-# DATA
-# -----------------------------------
+# --- DATABASE LOGIC ---
+def init_db():
+    conn = sqlite3.connect('prop_firms.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS firms 
+                 (name TEXT, discount TEXT, split TEXT, price TEXT, rating REAL, link TEXT)''')
+    # Seed data if empty
+    c.execute("SELECT count(*) FROM firms")
+    if c.fetchone()[0] == 0:
+        firms = [
+            ('FundingPips', '5% OFF', '80/20', '$399', 4.9, 'https://link.com'),
+            ('FTMO', 'NONE', '90/10', '€540', 4.8, 'https://link.com'),
+            ('Blue Guardian', '10% OFF', '85/15', '$497', 4.7, 'https://link.com')
+        ]
+        c.executemany("INSERT INTO firms VALUES (?,?,?,?,?,?)", firms)
+    conn.commit()
+    conn.close()
 
-firms = [
-    {
-        "name": "FTMO",
-        "logo": "FTMO",
-        "color": "#00D4FF",
-        "badge": "🏆 #1 Rated",
-        "discount": "10% OFF",
-        "originalPrice": "$155",
-        "price": "$139",
-        "accounts": ["$10K","$25K","$50K","$100K"],
-        "profitSplit": "90%",
-        "maxFunding": "$400K",
-        "challenge": "2-Phase",
-        "features": [
-            "Instant Payouts",
-            "Free Retry",
-            "Scaling Plan"
-        ],
-        "rating": 4.9,
-        "reviews": 12400,
-        "tag": "BEST SELLER",
-        "tagColor": "#FFD700",
-    },
+init_db()
 
-    {
-        "name": "The Funded Trader",
-        "logo": "TFT",
-        "color": "#FF6B35",
-        "badge": "🔥 High Scaling",
-        "discount": "12% OFF",
-        "originalPrice": "$175",
-        "price": "$154",
-        "accounts": ["$25K","$50K","$100K"],
-        "profitSplit": "90%",
-        "maxFunding": "$1.5M",
-        "challenge": "2-Phase",
-        "features": [
-            "Scaling",
-            "Bi Weekly Pay",
-            "Copy Trading"
-        ],
-        "rating": 4.8,
-        "reviews": 6700,
-        "tag": "TOP SCALING",
-        "tagColor": "#FF6B35",
-    },
-
-    {
-        "name": "Apex Trader",
-        "logo": "APX",
-        "color": "#A855F7",
-        "badge": "💎 Futures Elite",
-        "discount": "20% OFF",
-        "originalPrice": "$167",
-        "price": "$133",
-        "accounts": ["$25K","$50K","$100K"],
-        "profitSplit": "100%",
-        "maxFunding": "$250K",
-        "challenge": "1-Phase",
-        "features": [
-            "100% Split",
-            "Futures",
-            "No Daily Loss"
-        ],
-        "rating": 4.6,
-        "reviews": 5200,
-        "tag": "100% SPLIT",
-        "tagColor": "#A855F7",
-    }
-]
-
-# -----------------------------------
-# PAGE CSS
-# -----------------------------------
-
-st.markdown("""
-<style>
-
-html, body, [class*="css"] {
-    background: linear-gradient(
-        160deg,
-        #07070f 0%,
-        #0b0b18 60%,
-        #081018 100%
-    );
-    color: white;
-}
-
-.block-container {
-    padding-top: 1rem;
-}
-
-.title {
-    font-size: 70px;
-    font-weight: 900;
-    text-align: center;
-    line-height: 1.1;
-}
-
-.gradient {
-    background: linear-gradient(
-        90deg,
-        #00D4FF,
-        #A855F7,
-        #FF6B35,
-        #00FF88
-    );
-
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.subtitle {
-    text-align:center;
-    color:#888;
-    font-size:18px;
-    max-width:800px;
-    margin:auto;
-    line-height:1.8;
-}
-
-.stat-box {
-    background: rgba(255,255,255,0.03);
-    border:1px solid rgba(255,255,255,0.08);
-    border-radius:20px;
-    padding:25px;
-    text-align:center;
-}
-
-.stat-number {
-    color:#00D4FF;
-    font-size:32px;
-    font-weight:900;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# -----------------------------------
-# HERO SECTION
-# -----------------------------------
-
-st.markdown("""
-<div style='text-align:center;padding-top:30px;'>
-
-<div style='
-display:inline-block;
-padding:8px 20px;
-border-radius:20px;
-background:rgba(0,212,255,0.08);
-border:1px solid rgba(0,212,255,0.25);
-color:#00D4FF;
-font-size:12px;
-font-weight:700;
-margin-bottom:30px;
-'>
-🔥 EXCLUSIVE DISCOUNTS
-</div>
-
-<div class='title'>
-Get Funded Fast.<br>
-<span class='gradient'>
-Trade With Confidence.
-</span>
-</div>
-
-<div class='subtitle'>
-Compare the world's best prop firms,
-unlock exclusive discount codes,
-and get funded up to $1.5M.
-</div>
-
-</div>
-""", unsafe_allow_html=True)
-
-st.write("")
-st.write("")
-
-# -----------------------------------
-# STATS
-# -----------------------------------
-
-c1, c2, c3, c4 = st.columns(4)
-
-with c1:
+# --- CSS INJECTION ---
+def local_css():
     st.markdown("""
-    <div class='stat-box'>
-        <div class='stat-number'>250K+</div>
-        <div style='color:#777;'>Traders Funded</div>
-    </div>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        :root {
+            --bg-dark: #050505;
+            --neon-blue: #00f2ff;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        .main { background-color: var(--bg-dark); color: white; font-family: 'Inter', sans-serif; }
+        
+        /* Glassmorphism Cards */
+        .prop-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 25px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-align: center;
+        }
+        .prop-card:hover {
+            transform: translateY(-12px);
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+        }
+
+        /* Neon Buttons */
+        .neon-btn {
+            background: linear-gradient(45deg, #00f2ff, #0066ff);
+            border: none;
+            color: black;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+        }
+
+        /* Animated Background Gradients */
+        .gradient-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, #101014 0%, #050505 100%);
+            z-index: -1;
+        }
+
+        /* Hide Streamlit elements */
+        #MainMenu, footer, header {visibility: hidden;}
+    </style>
+    <div class="gradient-bg"></div>
     """, unsafe_allow_html=True)
 
-with c2:
-    st.markdown("""
-    <div class='stat-box'>
-        <div class='stat-number'>$85M+</div>
-        <div style='color:#777;'>Total Payouts</div>
-    </div>
+local_css()
+
+# --- GSAP ANIMATION WRAPPER ---
+components.html("""
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        window.parent.document.addEventListener('DOMContentLoaded', () => {
+            gsap.from(".prop-card", {
+                duration: 1, 
+                y: 50, 
+                opacity: 0, 
+                stagger: 0.2, 
+                ease: "power4.out"
+            });
+        });
+    </script>
+""", height=0)
+
+# --- SECTIONS ---
+
+def hero_section():
+    st.markdown(f"""
+        <div style="text-align: center; padding: 100px 0 50px 0;">
+            <h1 style="font-size: 4rem; font-weight: 800; margin-bottom: 10px; background: -webkit-linear-gradient(#fff, #666); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Get Funded. Trade Like a Pro.
+            </h1>
+            <p style="color: #888; font-size: 1.2rem; margin-bottom: 30px;">
+                Access the world's top Prop Firm challenges with exclusive discounts and institutional analytics.
+            </p>
+            <button class="neon-btn">Explore Challenges ↓</button>
+        </div>
     """, unsafe_allow_html=True)
 
-with c3:
-    st.markdown("""
-    <div class='stat-box'>
-        <div class='stat-number'>40+</div>
-        <div style='color:#777;'>Firms Reviewed</div>
+def prop_firm_grid():
+    conn = sqlite3.connect('prop_firms.db')
+    df = pd.read_sql_query("SELECT * FROM firms", conn)
+    
+    cols = st.columns(len(df))
+    for i, row in df.iterrows():
+        with cols[i]:
+            st.markdown(f"""
+                <div class="prop-card">
+                    <h2 style="color: var(--neon-blue); margin-bottom: 5px;">{row['name']}</h2>
+                    <p style="font-size: 0.9rem; color: #aaa;">Rating: ⭐ {row['rating']}</p>
+                    <hr style="border: 0.5px solid var(--border); margin: 15px 0;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>Profit Split</span>
+                        <span style="color: #00ff88;">{row['split']}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                        <span>Starting At</span>
+                        <span style="font-weight: 700;">{row['price']}</span>
+                    </div>
+                    <div style="background: rgba(0,242,255,0.1); padding: 10px; border-radius: 10px; margin-bottom: 15px;">
+                        <code style="color: var(--neon-blue);">{row['discount']}</code>
+                    </div>
+                    <a href="{row['link']}" target="_blank" style="text-decoration: none;">
+                        <button class="neon-btn" style="width: 100%; font-size: 0.8rem;">Claim Challenge</button>
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
+
+def trading_dashboard_preview():
+    st.markdown("### <span style='color:#00f2ff'>Institutional</span> Dashboard Preview", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 1, 2])
+    
+    with c1:
+        st.markdown("""
+            <div class="prop-card">
+                <p style="color: #888; font-size: 0.8rem;">CURRENT EQUITY</p>
+                <h2 style="margin: 0;">$104,240.50</h2>
+                <p style="color: #00ff88; font-size: 0.8rem;">+4.24% Today</p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with c2:
+        st.markdown("""
+            <div class="prop-card">
+                <p style="color: #888; font-size: 0.8rem;">WIN RATE</p>
+                <h2 style="margin: 0;">68.4%</h2>
+                <div style="width: 100%; background: #222; height: 8px; border-radius: 10px; margin-top: 10px;">
+                    <div style="width: 68%; background: var(--neon-blue); height: 100%; border-radius: 10px; box-shadow: 0 0 10px var(--neon-blue);"></div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with c3:
+        # Plotly Cinematic Chart
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(y=[100, 102, 101, 105, 104, 108], mode='lines', fill='tozeroy', 
+                               line=dict(color='#00f2ff', width=3),
+                               fillcolor='rgba(0, 242, 255, 0.1)'))
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=0, b=0), height=150,
+            xaxis=dict(visible=False), yaxis=dict(visible=False)
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+def earnings_calculator():
+    st.markdown("### <span style='color:#00f2ff'>Affiliate</span> Earning Potential", unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="prop-card">', unsafe_allow_html=True)
+        col_in, col_out = st.columns(2)
+        with col_in:
+            refs = st.slider("Number of Referrals per month", 1, 500, 50)
+            avg_comm = st.select_slider("Average Challenge Commission", options=[10, 25, 50, 100], value=50)
+        with col_out:
+            total = refs * avg_comm
+            st.markdown(f"""
+                <div style="text-align: center;">
+                    <p style="color: #888;">ESTIMATED MONTHLY EARNINGS</p>
+                    <h1 style="font-size: 4rem; color: #00ff88;">${total:,}</h1>
+                </div>
+            """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# --- MAIN RENDER ---
+hero_section()
+st.write("---")
+prop_firm_grid()
+st.write("---")
+trading_dashboard_preview()
+st.write("---")
+earnings_calculator()
+
+# --- NOTIFICATION POPUP (JavaScript) ---
+components.html("""
+    <div id="notif" style="position: fixed; bottom: 20px; right: 20px; background: rgba(0,242,255,0.1); backdrop-filter: blur(10px); border: 1px solid #00f2ff; padding: 15px; border-radius: 10px; color: white; display: none; font-family: sans-serif; font-size: 0.8rem; z-index: 9999;">
+        ⚡ <b>New Payout:</b> Trader just received $4,200 from FundingPips!
     </div>
-    """, unsafe_allow_html=True)
-
-with c4:
-    st.markdown("""
-    <div class='stat-box'>
-        <div class='stat-number'>87%</div>
-        <div style='color:#777;'>Avg Profit Split</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.write("")
-st.write("")
-
-# -----------------------------------
-# SORT
-# -----------------------------------
-
-sort_by = st.selectbox(
-    "Sort By",
-    ["Top Rated", "Highest Split", "Best Discount"]
-)
-
-if sort_by == "Top Rated":
-    firms = sorted(
-        firms,
-        key=lambda x: x["rating"],
-        reverse=True
-    )
-
-elif sort_by == "Highest Split":
-    firms = sorted(
-        firms,
-        key=lambda x: int(
-            x["profitSplit"].replace("%","")
-        ),
-        reverse=True
-    )
-
-elif sort_by == "Best Discount":
-    firms = sorted(
-        firms,
-        key=lambda x: int(
-            x["discount"].replace("% OFF","")
-        ),
-        reverse=True
-    )
-
-# -----------------------------------
-# CARDS
-# -----------------------------------
-
-st.subheader("🔥 Top Prop Firms")
-
-for firm in firms:
-
-    features_html = ""
-
-    for f in firm["features"]:
-        features_html += f"""
-        <span style="
-            background:rgba(255,255,255,0.06);
-            padding:5px 10px;
-            border-radius:20px;
-            font-size:11px;
-            display:inline-block;
-            margin:3px;
-            color:white;
-        ">
-        ✓ {f}
-        </span>
-        """
-
-    accounts_html = ""
-
-    for a in firm["accounts"]:
-        accounts_html += f"""
-        <span style="
-            background:rgba(255,255,255,0.06);
-            padding:5px 10px;
-            border-radius:10px;
-            font-size:11px;
-            display:inline-block;
-            margin:3px;
-            color:white;
-        ">
-        {a}
-        </span>
-        """
-
-    html = f"""
-    <div style="
-        background:#111827;
-        border:1px solid #1f2937;
-        border-radius:24px;
-        padding:24px;
-        margin-bottom:20px;
-        color:white;
-        font-family:sans-serif;
-    ">
-
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-        ">
-
-            <div>
-
-                <div style="
-                    font-size:24px;
-                    font-weight:900;
-                    color:{firm["color"]};
-                ">
-                    {firm["logo"]}
-                </div>
-
-                <div style="
-                    font-size:28px;
-                    font-weight:800;
-                    margin-top:5px;
-                ">
-                    {firm["name"]}
-                </div>
-
-                <div style="
-                    color:{firm["color"]};
-                    font-size:13px;
-                    margin-top:5px;
-                ">
-                    {firm["badge"]}
-                </div>
-
-                <div style="
-                    color:#9ca3af;
-                    font-size:12px;
-                    margin-top:5px;
-                ">
-                    ⭐ {firm["rating"]} ({firm["reviews"]:,} reviews)
-                </div>
-
-            </div>
-
-            <div style="
-                background:{firm["tagColor"]}22;
-                color:{firm["tagColor"]};
-                padding:8px 14px;
-                border-radius:20px;
-                font-size:11px;
-                font-weight:700;
-            ">
-                {firm["tag"]}
-            </div>
-
-        </div>
-
-        <hr style="
-            border-color:#1f2937;
-            margin:20px 0;
-        ">
-
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-        ">
-
-            <div>
-
-                <div style="
-                    color:#6b7280;
-                    font-size:12px;
-                ">
-                    Starting From
-                </div>
-
-                <div style="
-                    font-size:38px;
-                    font-weight:900;
-                    margin-top:5px;
-                ">
-                    {firm["price"]}
-                </div>
-
-                <div style="
-                    color:#6b7280;
-                    text-decoration:line-through;
-                ">
-                    {firm["originalPrice"]}
-                </div>
-
-            </div>
-
-            <div style="
-                background:#FFD70022;
-                color:#FFD700;
-                padding:10px 16px;
-                border-radius:12px;
-                font-weight:800;
-            ">
-                {firm["discount"]}
-            </div>
-
-        </div>
-
-        <div style="
-            margin-top:20px;
-            line-height:2;
-        ">
-
-            <div>
-                <span style="color:#9ca3af;">
-                    Profit Split:
-                </span>
-
-                <b>
-                    {firm["profitSplit"]}
-                </b>
-            </div>
-
-            <div>
-                <span style="color:#9ca3af;">
-                    Max Funding:
-                </span>
-
-                <b>
-                    {firm["maxFunding"]}
-                </b>
-            </div>
-
-            <div>
-                <span style="color:#9ca3af;">
-                    Challenge:
-                </span>
-
-                <b>
-                    {firm["challenge"]}
-                </b>
-            </div>
-
-        </div>
-
-        <div style="margin-top:20px;">
-            {features_html}
-        </div>
-
-        <div style="
-            margin-top:20px;
-            background:rgba(0,212,255,0.08);
-            border:1px dashed rgba(0,212,255,0.3);
-            border-radius:12px;
-            padding:12px;
-        ">
-
-            <div style="
-                color:#00D4FF;
-                font-weight:700;
-                font-size:13px;
-            ">
-                Promo Code:
-                ELITE{firm["name"][:4].upper()}10
-            </div>
-
-        </div>
-
-        <div style="margin-top:20px;">
-            {accounts_html}
-        </div>
-
-    </div>
-    """
-
-    components.html(
-        html,
-        height=550,
-        scrolling=False
-    )
-
-    st.button(
-        f"Get Funded → {firm['name']}"
-    )
-
-# -----------------------------------
-# FOOTER
-# -----------------------------------
-
-st.write("")
-st.write("")
-
-st.markdown("""
-<div style='
-text-align:center;
-padding:40px;
-color:#666;
-'>
-
-<div style='
-font-size:28px;
-font-weight:900;
-background:linear-gradient(
-90deg,
-#00D4FF,
-#A855F7
-);
-
--webkit-background-clip:text;
--webkit-text-fill-color:transparent;
-'>
-⚡ PropElite
-</div>
-
-<div style='margin-top:15px;font-size:13px;'>
-Trading involves risk.<br>
-Always do your own research.
-</div>
-
-<div style='margin-top:10px;font-size:12px;'>
-© 2026 PropElite
-</div>
-
-</div>
-""", unsafe_allow_html=True)
+    <script>
+        setTimeout(() => {
+            document.getElementById('notif').style.display = 'block';
+            setTimeout(() => { document.getElementById('notif').style.display = 'none'; }, 5000);
+        }, 3000);
+    </script>
+""", height=100)
